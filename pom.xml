@@ -2,7 +2,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.icatproject</groupId>
-    <artifactId>ijp.simple-batch</artifactId>
+    <artifactId>ijp.unixbatch</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>portal</name>
     <packaging>war</packaging>
