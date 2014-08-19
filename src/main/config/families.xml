@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<families default="batch">
+    <family name="ingest" count="2"
+        create="user { &quot;$user&quot;: ensure => present, managehome => true, shell => &quot;/bin/bash&quot;, groups=>[octopus], }">
+        <allowed pattern="ingester" />
+        <allowed pattern="anotherIngester" />
+    </family>
+    <family name="batch" count="3" create="user { &quot;$user&quot;: ensure => present, managehome => true, shell => &quot;/bin/bash&quot;, }"
+        destroy="user { &quot;$user&quot;: ensure => absent, managehome => true,  }" />
+</families>

@@ -1,0 +1,8 @@
+icat.url = https://smfisher.esc.rl.ac.uk:8181
+ids.url = https://smfisher.esc.rl.ac.uk:8181
+gangliaHost = smfisher.esc.rl.ac.uk
+
+prepareaccount = /home/fisher/bin/prepareaccount
+passwordDurationSeconds = 120
+poolPrefix = pool
+reader = db username root password password
