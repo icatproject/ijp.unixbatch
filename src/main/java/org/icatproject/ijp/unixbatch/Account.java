@@ -1,4 +1,4 @@
-package org.icatproject.ijp.r92;
+package org.icatproject.ijp.unixbatch;
 
 import java.util.Date;
 

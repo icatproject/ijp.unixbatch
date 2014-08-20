@@ -1,24 +1,28 @@
-package org.icatproject.ijp.r92;
+package org.icatproject.ijp.unixbatch;
 
 import java.io.InputStream;
 import java.util.List;
 
 import javax.ejb.EJB;
 import javax.ejb.Stateless;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.MediaType;
 
-import org.icatproject.ijp.r92.JobManagementBean.OutputType;
-import org.icatproject.ijp.r92.exceptions.ForbiddenException;
-import org.icatproject.ijp.r92.exceptions.InternalException;
-import org.icatproject.ijp.r92.exceptions.ParameterException;
-import org.icatproject.ijp.r92.exceptions.SessionException;
+import org.icatproject.ijp.unixbatch.JobManagementBean.OutputType;
+import org.icatproject.ijp.unixbatch.exceptions.ForbiddenException;
+import org.icatproject.ijp.unixbatch.exceptions.InternalException;
+import org.icatproject.ijp.unixbatch.exceptions.ParameterException;
+import org.icatproject.ijp.unixbatch.exceptions.SessionException;
 
 @Stateless
+@Path("")
 public class JobManager {
 
 	@EJB
@@ -37,7 +41,7 @@ public class JobManager {
 	 * @throws InternalException
 	 */
 	public void cancel(@PathParam("jobId") String jobId, @QueryParam("sessionId") String sessionId)
-			throws SessionException, ForbiddenException, InternalException {
+			throws SessionException, ForbiddenException, InternalException, ParameterException {
 		jobManagementBean.cancel(sessionId, jobId);
 	}
 
@@ -76,7 +80,7 @@ public class JobManager {
 	 */
 	public InputStream getError(@PathParam("jobId") String jobId,
 			@QueryParam("sessionId") String sessionId) throws SessionException, ForbiddenException,
-			InternalException {
+			InternalException, ParameterException {
 		return jobManagementBean.getJobOutput(sessionId, jobId, OutputType.ERROR_OUTPUT);
 	}
 
@@ -94,18 +98,29 @@ public class JobManager {
 	 * @throws SessionException
 	 * @throws ForbiddenException
 	 * @throws InternalException
+	 * @throws ParameterException
 	 */
 	public InputStream getOutput(@PathParam("jobId") String jobId,
 			@QueryParam("sessionId") String sessionId) throws SessionException, ForbiddenException,
-			InternalException {
+			InternalException, ParameterException {
 		return jobManagementBean.getJobOutput(sessionId, jobId, OutputType.STANDARD_OUTPUT);
 
 	}
 
 	@GET
 	@Path("status")
-	/** Get the list of known jobs that may be queried by the user identified by the sessionId */
-	public String getStatus(@QueryParam("sessionId") String sessionId) throws SessionException {
+	/**
+	 * Get the list of statuses of known jobs that may be queried by the user identified by the sessionId
+	 * 
+	 * @param sessionId
+	 * 
+	 * @return list of statuses
+	 * 
+	 * @throws SessionException
+	 * @throws ParameterException
+	 */
+	public String getStatus(@QueryParam("sessionId") String sessionId) throws SessionException,
+			ParameterException {
 		return jobManagementBean.listStatus(sessionId);
 	}
 
@@ -123,12 +138,14 @@ public class JobManager {
 	 * @throws ForbiddenException
 	 */
 	public String getStatus(@PathParam("jobId") String jobId,
-			@QueryParam("sessionId") String sessionId) throws SessionException, ForbiddenException {
+			@QueryParam("sessionId") String sessionId) throws SessionException, ForbiddenException,
+			ParameterException {
 		return jobManagementBean.getStatus(jobId, sessionId);
 	}
 
 	@POST
 	@Path("submit")
+	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 	/**
 	 * Submit a job
 	 * 
@@ -144,12 +161,13 @@ public class JobManager {
 	 * @throws SessionException
 	 * @throws ParameterException
 	 */
-	public String submit(@QueryParam("sessionId") String sessionId,
-			@QueryParam("executable") String executable,
-			@QueryParam("parameter") List<String> parameters,
-			@QueryParam("interactive") boolean interactive, @QueryParam("family") String family)
+	public String submit(@FormParam("sessionId") String sessionId,
+			@FormParam("executable") String executable,
+			@FormParam("parameter") List<String> parameters,
+			@FormParam("interactive") Boolean interactive, @QueryParam("family") String family)
 			throws InternalException, SessionException, ParameterException {
-		return jobManagementBean.submit(sessionId, executable, parameters, family, interactive);
+		return jobManagementBean.submit(sessionId, executable, parameters, family,
+				interactive != null && interactive);
 	}
 
 }

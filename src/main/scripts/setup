@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+from setup_utils import *
+import os
+import socket
+
+# unixbatch
+
+def uninstall():
+    app = actions.getAppName("ijp.unixbatch")
+    if app: actions.asadmin("undeploy " + app)
+    actions.asadmin("delete-jdbc-resource jdbc/unixbatch", tolerant=True)
+    actions.asadmin("delete-jdbc-connection-pool unixbatch", tolerant=True)
+    
+actions, options, arg = getActions()
+props = actions.getGlassfish("unixbatch-setup.properties", ["dbProperties", "glassfish", "driver", "port"])
+
+prop_name = "unixbatch.properties"
+prop_list = ["icat.url", "ids.url", "families.list", "prepareaccount",
+"passwordDurationSeconds", "poolPrefix", "reader"]
+
+if arg in ["CONFIGURE", "INSTALL"]:
+    actions.configure(prop_name, prop_list) 
+    unixbatchProperties = actions.getProperties(prop_name, prop_list)
+    actions.checkNoErrors()
+
+if arg == "INSTALL":
+    unixbatchProperties = actions.getProperties(prop_name, prop_list)
+
+    actions.installFile(prop_name)
+    
+    try:           
+        uninstall()
+        
+        actions.asadmin('create-jdbc-connection-pool --datasourceclassname ' + props["driver"] + 
+                ' --restype javax.sql.DataSource --failconnection=true --steadypoolsize 2' + 
+                ' --maxpoolsize 32 --ping --property ' + props["dbProperties"] + ' unixbatch', printOutput=True)
+        
+        actions.asadmin("create-jdbc-resource --connectionpoolid unixbatch jdbc/unixbatch")
+            
+        actions.deploy("ijp.unixbatch-*.war", deploymentorder=130)
+               
+    except Exception, e:
+        abort(str(e))
+                
+if arg == "UNINSTALL":
+    unixbatchProperties = actions.getProperties(prop_name, prop_list)   
+    actions.removeFile(prop_name)
+ 
+    try:
+        uninstall()
+        
+    except Exception, e:
+        abort(str(e))       
+    
+            
+    

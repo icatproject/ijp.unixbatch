@@ -1,4 +1,4 @@
-package org.icatproject.ijp.r92;
+package org.icatproject.ijp.unixbatch;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -23,7 +23,7 @@ import javax.persistence.PersistenceContext;
 import org.icatproject.ICAT;
 import org.icatproject.IcatException_Exception;
 
-import org.icatproject.ijp.r92.exceptions.InternalException;
+import org.icatproject.ijp.unixbatch.exceptions.InternalException;
 import org.icatproject.utils.CheckedProperties;
 import org.icatproject.utils.CheckedProperties.CheckedPropertyException;
 import org.icatproject.utils.ShellCommand;
@@ -41,7 +41,7 @@ public class MachineEJB {
 
 	private LoadFinder loadFinder;
 
-	private ICAT icat;
+
 
 	@PostConstruct
 	private void init() {
@@ -59,13 +59,13 @@ public class MachineEJB {
 			pbs = new Pbs();
 			loadFinder = new LoadFinder();
 			pbs = new Pbs();
-			icat = Icat.getIcat();
+
 		} catch (InternalException e) {
 			throw new RuntimeException("ServerException " + e.getMessage());
 		}
 	}
 
-	@PersistenceContext(unitName = "r92")
+	@PersistenceContext(unitName = "unixbatch")
 	private EntityManager entityManager;
 
 	private String poolPrefix;
@@ -75,14 +75,9 @@ public class MachineEJB {
 	private final static Random random = new Random();
 	private final static String chars = "abcdefghijkmnpqrstuvwxyz23456789";
 
-	private Account getAccount(String lightest, String sessionId, String jobName,
+	private Account getAccount(String lightest, String userName, String jobName,
 			List<String> parameters, File script) throws InternalException {
-		String userName;
-		try {
-			userName = icat.getUserName(sessionId);
-		} catch (IcatException_Exception e) {
-			throw new InternalException(e.getMessage());
-		}
+		
 		logger.debug("Set up account for " + userName + " on " + lightest);
 
 		logger.debug("Need to create a new pool account");
@@ -215,7 +210,7 @@ public class MachineEJB {
 		}
 	}
 
-	public Account prepareMachine(String sessionId, String jobName, List<String> parameters,
+	public Account prepareMachine(String userName, String jobName, List<String> parameters,
 			File script) throws InternalException {
 		Set<String> machines = new HashSet<String>();
 		Map<String, Float> loads = loadFinder.getLoads();
@@ -248,7 +243,7 @@ public class MachineEJB {
 		}
 
 		pbs.setOffline(lightest);
-		return getAccount(lightest, sessionId, jobName, parameters, script);
+		return getAccount(lightest, userName, jobName, parameters, script);
 
 	}
 

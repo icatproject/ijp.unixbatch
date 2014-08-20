@@ -1,4 +1,4 @@
-package org.icatproject.ijp.r92;
+package org.icatproject.ijp.unixbatch;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -8,9 +8,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.StringReader;
+import java.net.URL;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -24,18 +27,22 @@ import javax.ejb.Schedule;
 import javax.ejb.Stateless;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.namespace.QName;
 
 import org.icatproject.ICAT;
+import org.icatproject.ICATService;
 import org.icatproject.IcatException_Exception;
-import org.icatproject.ijp.r92.exceptions.ForbiddenException;
-import org.icatproject.ijp.r92.exceptions.InternalException;
-import org.icatproject.ijp.r92.exceptions.ParameterException;
-import org.icatproject.ijp.r92.exceptions.SessionException;
+
+import org.icatproject.ijp.unixbatch.exceptions.ForbiddenException;
+import org.icatproject.ijp.unixbatch.exceptions.InternalException;
+import org.icatproject.ijp.unixbatch.exceptions.ParameterException;
+import org.icatproject.ijp.unixbatch.exceptions.SessionException;
+import org.icatproject.utils.CheckedProperties;
+import org.icatproject.utils.CheckedProperties.CheckedPropertyException;
 import org.icatproject.utils.ShellCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,79 +59,69 @@ public class JobManagementBean {
 
 	private ICAT icat;
 
-	private class LocalFamily {
-
-		private int count;
-		private Pattern re;
-
-		public LocalFamily(int count, Pattern re) {
-			this.count = count;
-			this.re = re;
-		}
-
-	}
-
 	@EJB
 	private MachineEJB machineEJB;
 
 	private String defaultFamily;
-	private Map<String, LocalFamily> families = new HashMap<String, LocalFamily>();
-	private Unmarshaller qstatUnmarshaller;
+	private Map<String, List<String>> families = new HashMap<>();
 
 	@PostConstruct
 	void init() {
 
-		// try {
-		// XmlFileManager xmlFileManager = new XmlFileManager();
-		// jobTypes = xmlFileManager.getJobTypeMappings().getJobTypesMap();
-		// logger.debug("Initialised JobManager");
-		// } catch (Exception e) {
-		// String msg = e.getClass().getName() + " reports " + e.getMessage();
-		// logger.error(msg);
-		// throw new RuntimeException(msg);
+		try {
+			CheckedProperties props = new CheckedProperties();
+			props.loadFromFile(Constants.PROPERTIES_FILEPATH);
 
-		// icat = Icat.getIcat();
-		//
-		// Unmarshaller um = JAXBContext.newInstance(Families.class).createUnmarshaller();
-		// Families fams = (Families) um.unmarshal(new FileReader(Constants.CONFIG_SUBDIR
-		// + "/families.xml"));
-		// PrintStream p = new PrintStream("/etc/puppet/modules/usergen/manifests/init.pp");
-		// p.print(fams.getPuppet());
-		// p.close();
-		// defaultFamily = fams.getDefault();
-		// for (Families.Family fam : fams.getFamily()) {
-		// LocalFamily lf = new LocalFamily(fam.getCount(), fam.getRE());
-		// families.put(fam.getName(), lf);
-		// }
-		//
-		// qstatUnmarshaller = JAXBContext.newInstance(Qstat.class).createUnmarshaller();
-		//
-		// XmlFileManager xmlFileManager = new XmlFileManager();
-		// jobTypes = xmlFileManager.getJobTypeMappings().getJobTypesMap();
-		//
-		// logger.debug("Initialised JobManagementBean");
-		// } catch (Exception e) {
-		// String msg = e.getClass().getName() + " reports " + e.getMessage();
-		// logger.error(msg);
-		// throw new RuntimeException(msg);
-		// }
+			String familiesList = props.getString("families.list");
+			for (String mnemonic : familiesList.split("\\s+")) {
+				if (defaultFamily == null) {
+					defaultFamily = mnemonic;
+				}
+				String key = "families." + mnemonic;
+				String[] members = props.getProperty(key).split("\\s+");
+				families.put(mnemonic, new ArrayList<>(Arrays.asList(members)));
+				logger.debug("Family " + mnemonic + " contains " + families.get(mnemonic));
+			}
+			if (defaultFamily == null) {
+				String msg = "No families defined";
+				logger.error(msg);
+				throw new IllegalStateException(msg);
+			}
+
+			if (props.has("javax.net.ssl.trustStore")) {
+				System.setProperty("javax.net.ssl.trustStore",
+						props.getProperty("javax.net.ssl.trustStore"));
+			}
+			URL icatUrl = props.getURL("icat.url");
+			icatUrl = new URL(icatUrl, "ICATService/ICAT?wsdl");
+			QName qName = new QName("http://icatproject.org", "ICATService");
+			ICATService service = new ICATService(icatUrl, qName);
+			icat = service.getICATPort();
+
+			logger.info("Set up unixbatch with default family " + defaultFamily);
+		} catch (Exception e) {
+			String msg = e.getClass() + " reports " + e.getMessage();
+			logger.error(msg);
+			throw new IllegalStateException(msg);
+		}
+
 	}
 
 	private final static Logger logger = LoggerFactory.getLogger(JobManagementBean.class);
 	private final static Random random = new Random();
 	private final static String chars = "abcdefghijklmnpqrstuvwxyz";
 
-	@PersistenceContext(unitName = "r92")
+	@PersistenceContext(unitName = "unixbatch")
 	private EntityManager entityManager;
 
-	public List<Job> getJobsForUser(String sessionId) throws SessionException {
+	public List<Job> getJobsForUser(String sessionId) throws SessionException, ParameterException {
 		String username = getUserName(sessionId);
 		return entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
 				.setParameter("username", username).getResultList();
 	}
 
 	public InputStream getJobOutput(String sessionId, String jobId, OutputType outputType)
-			throws SessionException, ForbiddenException, InternalException {
+			throws SessionException, ForbiddenException, InternalException, ParameterException {
 		Job job = getJob(sessionId, jobId);
 		String ext = "." + (outputType == OutputType.STANDARD_OUTPUT ? "o" : "e")
 				+ jobId.split("\\.")[0];
@@ -152,71 +149,71 @@ public class JobManagementBean {
 		}
 	}
 
-	@Schedule(minute = "*/1", hour = "*")
-	public void updateJobsFromQstat() {
-		try {
+	// @Schedule(minute = "*/1", hour = "*")
+	// public void updateJobsFromQstat() {
+	// try {
+	//
+	// ShellCommand sc = new ShellCommand("qstat", "-x");
+	// if (sc.isError()) {
+	// throw new InternalException("Unable to query jobs via qstat " + sc.getStderr());
+	// }
+	// String jobsXml = sc.getStdout().trim();
+	// if (jobsXml.isEmpty()) {
+	// /* See if any jobs have completed without being noticed */
+	// for (Job job : entityManager.createNamedQuery(Job.FIND_INCOMPLETE, Job.class)
+	// .getResultList()) {
+	// logger.warn("Updating status of job '" + job.getId() + "' from '"
+	// + job.getStatus() + "' to 'C' as not known to qstat");
+	// job.setStatus("C");
+	// }
+	// return;
+	// }
+	//
+	// // Qstat qstat = (Qstat) qstatUnmarshaller.unmarshal(new StringReader(jobsXml));
+	// // for (Qstat.Job xjob : qstat.getJobs()) {
+	// // String id = xjob.getJobId();
+	// // String status = xjob.getStatus();
+	// // String wn = xjob.getWorkerNode();
+	// // String workerNode = wn != null ? wn.split("/")[0] : "";
+	// // String comment = xjob.getComment() == null ? "" : xjob.getComment();
+	// //
+	// // Job job = entityManager.find(Job.class, id);
+	// // if (job != null) {/* Log updates on portal jobs */
+	// // if (!job.getStatus().equals(xjob.getStatus())) {
+	// // logger.debug("Updating status of job '" + id + "' from '" + job.getStatus()
+	// // + "' to '" + status + "'");
+	// // job.setStatus(status);
+	// // }
+	// // if (!job.getWorkerNode().equals(workerNode)) {
+	// // logger.debug("Updating worker node of job '" + id + "' from '"
+	// // + job.getWorkerNode() + "' to '" + workerNode + "'");
+	// // job.setWorkerNode(workerNode);
+	// // }
+	// // String oldComment = job.getComment() == null ? "" : job.getComment();
+	// // if (!oldComment.equals(comment)) {
+	// // logger.debug("Updating comment of job '" + id + "' from '" + oldComment
+	// // + "' to '" + comment + "'");
+	// // job.setComment(comment);
+	// // }
+	// // }
+	// // }
+	// } catch (Exception e) {
+	// ByteArrayOutputStream baos = new ByteArrayOutputStream();
+	// e.printStackTrace(new PrintStream(baos));
+	// logger.error("Update of db jobs from qstat failed. Class " + e.getClass() + " reports "
+	// + e.getMessage() + baos.toString());
+	// }
+	// }
 
-			ShellCommand sc = new ShellCommand("qstat", "-x");
-			if (sc.isError()) {
-				throw new InternalException("Unable to query jobs via qstat " + sc.getStderr());
-			}
-			String jobsXml = sc.getStdout().trim();
-			if (jobsXml.isEmpty()) {
-				/* See if any jobs have completed without being noticed */
-				for (Job job : entityManager.createNamedQuery(Job.FIND_INCOMPLETE, Job.class)
-						.getResultList()) {
-					logger.warn("Updating status of job '" + job.getId() + "' from '"
-							+ job.getStatus() + "' to 'C' as not known to qstat");
-					job.setStatus("C");
-				}
-				return;
-			}
-
-			Qstat qstat = (Qstat) qstatUnmarshaller.unmarshal(new StringReader(jobsXml));
-			for (Qstat.Job xjob : qstat.getJobs()) {
-				String id = xjob.getJobId();
-				String status = xjob.getStatus();
-				String wn = xjob.getWorkerNode();
-				String workerNode = wn != null ? wn.split("/")[0] : "";
-				String comment = xjob.getComment() == null ? "" : xjob.getComment();
-
-				Job job = entityManager.find(Job.class, id);
-				if (job != null) {/* Log updates on portal jobs */
-					if (!job.getStatus().equals(xjob.getStatus())) {
-						logger.debug("Updating status of job '" + id + "' from '" + job.getStatus()
-								+ "' to '" + status + "'");
-						job.setStatus(status);
-					}
-					if (!job.getWorkerNode().equals(workerNode)) {
-						logger.debug("Updating worker node of job '" + id + "' from '"
-								+ job.getWorkerNode() + "' to '" + workerNode + "'");
-						job.setWorkerNode(workerNode);
-					}
-					String oldComment = job.getComment() == null ? "" : job.getComment();
-					if (!oldComment.equals(comment)) {
-						logger.debug("Updating comment of job '" + id + "' from '" + oldComment
-								+ "' to '" + comment + "'");
-						job.setComment(comment);
-					}
-				}
-			}
-		} catch (Exception e) {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			e.printStackTrace(new PrintStream(baos));
-			logger.error("Update of db jobs from qstat failed. Class " + e.getClass() + " reports "
-					+ e.getMessage() + baos.toString());
-		}
-	}
-
-	public String submitBatch(String sessionId, String executable, List<String> parameters,
+	public String submitBatch(String userName, String executable, List<String> parameters,
 			String family) throws ParameterException, InternalException, SessionException {
 
-		String username = getUserName(sessionId);
+		if (family == null) {
+			family = defaultFamily;
+		}
+		List<String> members = families.get(family);
 
-		// if (lf.re != null && !lf.re.matcher(username).matches()) {
-		// throw new ParameterException(username + " is not allowed to use family " + family);
-		// }
-		String owner = family /* + random.nextInt(lf.count) */;
+		String owner = family + members.get(random.nextInt(members.size()));
 
 		/*
 		 * The batch script needs to be written to disk by the dmf user (running glassfish) before
@@ -235,71 +232,64 @@ public class JobManagementBean {
 
 		createScript(batchScriptFile, parameters, executable);
 
-		ShellCommand sc = new ShellCommand("sudo", "-u", owner, "qsub", "-k", "eo",
+		ShellCommand sc = new ShellCommand("sudo", "-u", owner, "batch", "<",
 				batchScriptFile.getAbsolutePath());
 		if (sc.isError()) {
-			throw new InternalException("Unable to submit job via qsub " + sc.getStderr());
+			throw new InternalException("Unable to submit job via batch " + sc.getStderr());
 		}
 		String jobId = sc.getStdout().trim();
 
-		sc = new ShellCommand("qstat", "-x", jobId);
-		if (sc.isError()) {
-			throw new InternalException("Unable to query just submitted job (id " + jobId
-					+ ") via qstat " + sc.getStderr());
-		}
-		String jobsXml = sc.getStdout().trim();
+		logger.debug(jobId);
 
-		Qstat qstat;
-		try {
-			qstat = (Qstat) qstatUnmarshaller.unmarshal(new StringReader(jobsXml));
-		} catch (JAXBException e1) {
-			throw new InternalException("Unable to parse qstat output for job (id " + jobId + ") "
-					+ sc.getStderr());
-		}
-		for (Qstat.Job xjob : qstat.getJobs()) {
-			String id = xjob.getJobId();
-			if (id.equals(jobId)) {
-				Job job = new Job();
-				job.setId(jobId);
-				job.setStatus(xjob.getStatus());
-				job.setComment(xjob.getComment());
-				String wn = xjob.getWorkerNode();
-				job.setWorkerNode(wn != null ? wn.split("/")[0] : "");
-				job.setBatchUsername(owner);
-				job.setUsername(username);
-				job.setSubmitDate(new Date());
-				job.setBatchFilename(batchScriptFile.getName());
-				entityManager.persist(job);
-			}
-		}
+		// sc = new ShellCommand("qstat", "-x", jobId);
+		// if (sc.isError()) {
+		// throw new InternalException("Unable to query just submitted job (id " + jobId
+		// + ") via qstat " + sc.getStderr());
+		// }
+		// String jobsXml = sc.getStdout().trim();
+		//
+		// Qstat qstat;
+		// try {
+		// qstat = (Qstat) qstatUnmarshaller.unmarshal(new StringReader(jobsXml));
+		// } catch (JAXBException e1) {
+		// throw new InternalException("Unable to parse qstat output for job (id " + jobId + ") "
+		// + sc.getStderr());
+		// }
+		// for (Qstat.Job xjob : qstat.getJobs()) {
+		// String id = xjob.getJobId();
+		// if (id.equals(jobId)) {
+		// Job job = new Job();
+		// job.setId(jobId);
+		// job.setStatus(xjob.getStatus());
+		// job.setComment(xjob.getComment());
+		// String wn = xjob.getWorkerNode();
+		// job.setWorkerNode(wn != null ? wn.split("/")[0] : "");
+		// job.setBatchUsername(owner);
+		// job.setUsername(username);
+		// job.setSubmitDate(new Date());
+		// job.setBatchFilename(batchScriptFile.getName());
+		// entityManager.persist(job);
+		// }
+		// }
 		return jobId;
 	}
 
 	private void createScript(File batchScriptFile, List<String> parameters, String executable)
 			throws InternalException {
 
-		BufferedWriter bw = null;
-		try {
-			bw = new BufferedWriter(new FileWriter(batchScriptFile));
+		String redirect = "> " + batchScriptFile + ".o" + " 2> " + batchScriptFile + ".e";
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter(batchScriptFile))) {
 			bw.write("#!/bin/sh");
 			bw.newLine();
-			bw.write("echo $(date) - " + executable + " starting");
+			bw.write("echo $(date) - " + executable + " starting " + redirect);
 			bw.newLine();
-			String line = executable + " " + JobManagementBean.escaped(parameters);
+			String line = executable + " " + JobManagementBean.escaped(parameters) + redirect;
 			logger.debug("Exec line for " + executable + ": " + line);
 			bw.write(line);
 			bw.newLine();
 			bw.newLine();
 		} catch (IOException e) {
 			throw new InternalException("Exception creating batch script: " + e.getMessage());
-		} finally {
-			if (bw != null) {
-				try {
-					bw.close();
-				} catch (IOException e) {
-					// Ignore it
-				}
-			}
 		}
 		batchScriptFile.setExecutable(true);
 
@@ -332,7 +322,7 @@ public class JobManagementBean {
 		return sb.toString();
 	}
 
-	public String submitInteractive(String sessionId, String executable, List<String> parameters,
+	public String submitInteractive(String userName, String executable, List<String> parameters,
 			String family) throws InternalException {
 		Path p = null;
 		try {
@@ -342,12 +332,12 @@ public class JobManagementBean {
 		}
 		File interactiveScriptFile = p.toFile();
 		createScript(interactiveScriptFile, parameters, executable);
-		Account account = machineEJB.prepareMachine(sessionId, executable, parameters,
+		Account account = machineEJB.prepareMachine(userName, executable, parameters,
 				interactiveScriptFile);
 		return account.getUserName() + " " + account.getPassword() + " " + account.getHost();
 	}
 
-	private String getUserName(String sessionId) throws SessionException {
+	private String getUserName(String sessionId) throws SessionException, ParameterException {
 		try {
 			checkCredentials(sessionId);
 			return icat.getUserName(sessionId);
@@ -357,19 +347,19 @@ public class JobManagementBean {
 		}
 	}
 
-	public String listStatus(String sessionId) throws SessionException {
-		 String username = getUserName(sessionId);
-		 List<Job> jobs = entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
-		 .setParameter("username", username).getResultList();
-		 StringBuilder sb = new StringBuilder();
-		 for (Job job : jobs) {
-		 sb.append(job.getId() + ", " + job.getStatus() + "\n");
-		 }
-		 return sb.toString();
+	public String listStatus(String sessionId) throws SessionException, ParameterException {
+		String username = getUserName(sessionId);
+		List<Job> jobs = entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
+				.setParameter("username", username).getResultList();
+		StringBuilder sb = new StringBuilder();
+		for (Job job : jobs) {
+			sb.append(job.getId() + ", " + job.getStatus() + "\n");
+		}
+		return sb.toString();
 	}
 
 	public String getStatus(String jobId, String sessionId) throws SessionException,
-			ForbiddenException {
+			ForbiddenException, ParameterException {
 		Job job = getJob(sessionId, jobId);
 		StringBuilder sb = new StringBuilder();
 		sb.append("Id:                 " + job.getId() + "\n");
@@ -380,7 +370,8 @@ public class JobManagementBean {
 		return sb.toString();
 	}
 
-	private Job getJob(String sessionId, String jobId) throws SessionException, ForbiddenException {
+	private Job getJob(String sessionId, String jobId) throws SessionException, ForbiddenException,
+			ParameterException {
 		checkCredentials(sessionId);
 		String username = getUserName(sessionId);
 		Job job = entityManager.find(Job.class, jobId);
@@ -412,7 +403,7 @@ public class JobManagementBean {
 	}
 
 	public void cancel(String sessionId, String jobId) throws SessionException, ForbiddenException,
-			InternalException {
+			InternalException, ParameterException {
 		checkCredentials(sessionId);
 		Job job = getJob(sessionId, jobId);
 		ShellCommand sc = new ShellCommand("qdel", job.getId());
@@ -422,20 +413,23 @@ public class JobManagementBean {
 
 	}
 
-	private void checkCredentials(String sessionId) {
+	private void checkCredentials(String sessionId) throws ParameterException {
 		if (sessionId == null) {
-			throw new WebApplicationException(Response.status(Status.BAD_REQUEST)
-					.entity("No sessionId was specified\n").build());
+			throw new ParameterException("No sessionId was specified");
 		}
 	}
 
 	public String submit(String sessionId, String executable, List<String> parameters,
 			String family, boolean interactive) throws InternalException, SessionException,
 			ParameterException {
+		logger.info("submit called with sessionId:" + sessionId + " executable:" + executable
+				+ " parameters:" + parameters + " family:" + family + " :" + " interactive:"
+				+ interactive);
+		String userName = getUserName(sessionId);
 		if (interactive) {
-			return submitInteractive(sessionId, executable, parameters, family);
+			return submitInteractive(userName, executable, parameters, family);
 		} else {
-			return submitBatch(sessionId, executable, parameters, family);
+			return submitBatch(userName, executable, parameters, family);
 		}
 	}
 

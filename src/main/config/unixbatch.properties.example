@@ -6,3 +6,7 @@ prepareaccount = /home/fisher/bin/prepareaccount
 passwordDurationSeconds = 120
 poolPrefix = pool
 reader = db username root password password
+
+families.list = batch ingest
+families.batch = batch01 batch02 batch03
+families.ingest = ingest01 ingest02
