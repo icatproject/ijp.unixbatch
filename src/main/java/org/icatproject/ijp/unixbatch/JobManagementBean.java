@@ -3,15 +3,13 @@ package org.icatproject.ijp.unixbatch;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
-import java.io.StringReader;
 import java.net.URL;
-import java.nio.file.FileSystems;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -19,30 +17,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.regex.Pattern;
 
 import javax.annotation.PostConstruct;
-import javax.ejb.EJB;
-import javax.ejb.Schedule;
 import javax.ejb.Stateless;
+import javax.json.Json;
+import javax.json.stream.JsonGenerator;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
 import javax.xml.namespace.QName;
 
 import org.icatproject.ICAT;
 import org.icatproject.ICATService;
 import org.icatproject.IcatException_Exception;
-
 import org.icatproject.ijp.unixbatch.exceptions.ForbiddenException;
 import org.icatproject.ijp.unixbatch.exceptions.InternalException;
 import org.icatproject.ijp.unixbatch.exceptions.ParameterException;
 import org.icatproject.ijp.unixbatch.exceptions.SessionException;
 import org.icatproject.utils.CheckedProperties;
-import org.icatproject.utils.CheckedProperties.CheckedPropertyException;
 import org.icatproject.utils.ShellCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,11 +50,10 @@ public class JobManagementBean {
 
 	private ICAT icat;
 
-	@EJB
-	private MachineEJB machineEJB;
-
 	private String defaultFamily;
 	private Map<String, List<String>> families = new HashMap<>();
+
+	private Path jobOutputDir;
 
 	@PostConstruct
 	void init() {
@@ -88,6 +78,14 @@ public class JobManagementBean {
 				throw new IllegalStateException(msg);
 			}
 
+			jobOutputDir = props.getPath("jobOutputDir");
+			if (!jobOutputDir.toFile().exists()) {
+				String msg = "jobOutputDir " + jobOutputDir + "does not exist";
+				logger.error(msg);
+				throw new IllegalStateException(msg);
+			}
+			jobOutputDir = jobOutputDir.toAbsolutePath();
+
 			if (props.has("javax.net.ssl.trustStore")) {
 				System.setProperty("javax.net.ssl.trustStore",
 						props.getProperty("javax.net.ssl.trustStore"));
@@ -109,101 +107,30 @@ public class JobManagementBean {
 
 	private final static Logger logger = LoggerFactory.getLogger(JobManagementBean.class);
 	private final static Random random = new Random();
-	private final static String chars = "abcdefghijklmnpqrstuvwxyz";
 
 	@PersistenceContext(unitName = "unixbatch")
 	private EntityManager entityManager;
 
-	public List<Job> getJobsForUser(String sessionId) throws SessionException, ParameterException {
-		String username = getUserName(sessionId);
-		return entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
-				.setParameter("username", username).getResultList();
-	}
-
 	public InputStream getJobOutput(String sessionId, String jobId, OutputType outputType)
 			throws SessionException, ForbiddenException, InternalException, ParameterException {
+		logger.info("getJobOutput called with sessionId:" + sessionId + " jobId:" + jobId
+				+ " outputType:" + outputType);
 		Job job = getJob(sessionId, jobId);
-		String ext = "." + (outputType == OutputType.STANDARD_OUTPUT ? "o" : "e")
-				+ jobId.split("\\.")[0];
-		Path path = FileSystems.getDefault().getPath("/home/batch/jobs",
-				job.getBatchFilename() + ext);
-		if (!Files.exists(path)) {
-			logger.debug("Getting intermediate output for " + jobId);
-			ShellCommand sc = new ShellCommand("sudo", "-u", "batch", "ssh", job.getWorkerNode(),
-					"sudo", "push_output", job.getBatchUsername(), path.toFile().getName());
-			if (sc.isError()) {
-				throw new InternalException("Temporary? problem getting output " + sc.getStderr());
-			}
-			path = FileSystems.getDefault().getPath("/home/batch/jobs",
-					job.getBatchFilename() + ext + "_tmp");
-		}
-		if (Files.exists(path)) {
-			logger.debug("Returning output for " + jobId);
+
+		Path file = jobOutputDir.resolve(job.getDirectory()).resolve(
+				outputType == OutputType.STANDARD_OUTPUT ? "o" : "e");
+
+		if (Files.exists(file)) {
 			try {
-				return Files.newInputStream(path);
+				return Files.newInputStream(file);
 			} catch (IOException e) {
-				throw new InternalException(e.getClass() + " reports " + e.getMessage());
+				throw new InternalException(e.getClass() + " " + e.getMessage());
 			}
 		} else {
-			throw new InternalException("No output file available at the moment");
+			throw new ParameterException("No output file of type " + outputType
+					+ " available at the moment");
 		}
 	}
-
-	// @Schedule(minute = "*/1", hour = "*")
-	// public void updateJobsFromQstat() {
-	// try {
-	//
-	// ShellCommand sc = new ShellCommand("qstat", "-x");
-	// if (sc.isError()) {
-	// throw new InternalException("Unable to query jobs via qstat " + sc.getStderr());
-	// }
-	// String jobsXml = sc.getStdout().trim();
-	// if (jobsXml.isEmpty()) {
-	// /* See if any jobs have completed without being noticed */
-	// for (Job job : entityManager.createNamedQuery(Job.FIND_INCOMPLETE, Job.class)
-	// .getResultList()) {
-	// logger.warn("Updating status of job '" + job.getId() + "' from '"
-	// + job.getStatus() + "' to 'C' as not known to qstat");
-	// job.setStatus("C");
-	// }
-	// return;
-	// }
-	//
-	// // Qstat qstat = (Qstat) qstatUnmarshaller.unmarshal(new StringReader(jobsXml));
-	// // for (Qstat.Job xjob : qstat.getJobs()) {
-	// // String id = xjob.getJobId();
-	// // String status = xjob.getStatus();
-	// // String wn = xjob.getWorkerNode();
-	// // String workerNode = wn != null ? wn.split("/")[0] : "";
-	// // String comment = xjob.getComment() == null ? "" : xjob.getComment();
-	// //
-	// // Job job = entityManager.find(Job.class, id);
-	// // if (job != null) {/* Log updates on portal jobs */
-	// // if (!job.getStatus().equals(xjob.getStatus())) {
-	// // logger.debug("Updating status of job '" + id + "' from '" + job.getStatus()
-	// // + "' to '" + status + "'");
-	// // job.setStatus(status);
-	// // }
-	// // if (!job.getWorkerNode().equals(workerNode)) {
-	// // logger.debug("Updating worker node of job '" + id + "' from '"
-	// // + job.getWorkerNode() + "' to '" + workerNode + "'");
-	// // job.setWorkerNode(workerNode);
-	// // }
-	// // String oldComment = job.getComment() == null ? "" : job.getComment();
-	// // if (!oldComment.equals(comment)) {
-	// // logger.debug("Updating comment of job '" + id + "' from '" + oldComment
-	// // + "' to '" + comment + "'");
-	// // job.setComment(comment);
-	// // }
-	// // }
-	// // }
-	// } catch (Exception e) {
-	// ByteArrayOutputStream baos = new ByteArrayOutputStream();
-	// e.printStackTrace(new PrintStream(baos));
-	// logger.error("Update of db jobs from qstat failed. Class " + e.getClass() + " reports "
-	// + e.getMessage() + baos.toString());
-	// }
-	// }
 
 	public String submitBatch(String userName, String executable, List<String> parameters,
 			String family) throws ParameterException, InternalException, SessionException {
@@ -212,87 +139,88 @@ public class JobManagementBean {
 			family = defaultFamily;
 		}
 		List<String> members = families.get(family);
-
-		String owner = family + members.get(random.nextInt(members.size()));
-
-		/*
-		 * The batch script needs to be written to disk by the dmf user (running glassfish) before
-		 * it can be submitted via the qsub command as a less privileged batch user. First generate
-		 * a unique name for it.
-		 */
-		File batchScriptFile = null;
-		do {
-			char[] pw = new char[10];
-			for (int i = 0; i < pw.length; i++) {
-				pw[i] = chars.charAt(random.nextInt(chars.length()));
-			}
-			String batchScriptName = new String(pw) + ".sh";
-			batchScriptFile = new File(Constants.DMF_WORKING_DIR_NAME, batchScriptName);
-		} while (batchScriptFile.exists());
-
-		createScript(batchScriptFile, parameters, executable);
-
-		ShellCommand sc = new ShellCommand("sudo", "-u", owner, "batch", "<",
-				batchScriptFile.getAbsolutePath());
-		if (sc.isError()) {
-			throw new InternalException("Unable to submit job via batch " + sc.getStderr());
+		if (members == null) {
+			throw new ParameterException("Specified family " + family + " is not recognised");
 		}
-		String jobId = sc.getStdout().trim();
+		String owner = members.get(random.nextInt(members.size()));
 
-		logger.debug(jobId);
+		Path dir = null;
+		try {
+			dir = Files.createTempDirectory(jobOutputDir, null);
+			ShellCommand sc = new ShellCommand("setfacl", "-m", "user:" + owner + ":rwx",
+					dir.toString());
+			if (sc.getExitValue() != 0) {
+				throw new InternalException(sc.getMessage() + ". Check that user '" + owner
+						+ "' exists");
+			}
+		} catch (IOException e) {
+			throw new InternalException("Unable to submit job via batch " + e.getClass() + " "
+					+ e.getMessage());
+		}
 
-		// sc = new ShellCommand("qstat", "-x", jobId);
-		// if (sc.isError()) {
-		// throw new InternalException("Unable to query just submitted job (id " + jobId
-		// + ") via qstat " + sc.getStderr());
-		// }
-		// String jobsXml = sc.getStdout().trim();
-		//
-		// Qstat qstat;
-		// try {
-		// qstat = (Qstat) qstatUnmarshaller.unmarshal(new StringReader(jobsXml));
-		// } catch (JAXBException e1) {
-		// throw new InternalException("Unable to parse qstat output for job (id " + jobId + ") "
-		// + sc.getStderr());
-		// }
-		// for (Qstat.Job xjob : qstat.getJobs()) {
-		// String id = xjob.getJobId();
-		// if (id.equals(jobId)) {
-		// Job job = new Job();
-		// job.setId(jobId);
-		// job.setStatus(xjob.getStatus());
-		// job.setComment(xjob.getComment());
-		// String wn = xjob.getWorkerNode();
-		// job.setWorkerNode(wn != null ? wn.split("/")[0] : "");
-		// job.setBatchUsername(owner);
-		// job.setUsername(username);
-		// job.setSubmitDate(new Date());
-		// job.setBatchFilename(batchScriptFile.getName());
-		// entityManager.persist(job);
-		// }
-		// }
-		return jobId;
+		Path batchScriptFile = createScript(parameters, executable, dir);
+
+		logger.debug("Writing to " + batchScriptFile.toString() + " to run as " + owner);
+		String jobId;
+		try (InputStream is = Files.newInputStream(batchScriptFile)) {
+			ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), is, "sudo", "-u",
+					owner, "batch");
+			if (sc.getExitValue() != 0) {
+				throw new InternalException("Unable to submit job via batch " + sc.getMessage()
+						+ sc.getStdout());
+			}
+			String response = sc.getStderr().trim();
+			jobId = response.split("\\s+")[1];
+
+			Job job = new Job();
+			job.setId(jobId);
+			job.setExecutable(executable);
+			job.setBatchUsername(owner);
+			job.setUsername(userName);
+			job.setSubmitDate(new Date());
+			job.setDirectory(dir.getFileName().toString());
+			entityManager.persist(job);
+			logger.debug("Job " + jobId + " submitted");
+			return jobId;
+		} catch (IOException e) {
+			throw new InternalException("Unable to submit job via batch " + e.getClass() + " "
+					+ e.getMessage());
+		}
+
 	}
 
-	private void createScript(File batchScriptFile, List<String> parameters, String executable)
+	private Path createScript(List<String> parameters, String executable, Path dir)
 			throws InternalException {
+		Path batchScriptFile = null;
+		try {
+			batchScriptFile = Files.createTempFile(null, null);
+		} catch (IOException e) {
+			throw new InternalException("Unable to create a temporary file: " + e.getMessage());
+		}
 
-		String redirect = "> " + batchScriptFile + ".o" + " 2> " + batchScriptFile + ".e";
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter(batchScriptFile))) {
-			bw.write("#!/bin/sh");
-			bw.newLine();
-			bw.write("echo $(date) - " + executable + " starting " + redirect);
-			bw.newLine();
-			String line = executable + " " + JobManagementBean.escaped(parameters) + redirect;
-			logger.debug("Exec line for " + executable + ": " + line);
-			bw.write(line);
-			bw.newLine();
-			bw.newLine();
+		String of = dir.resolve("o").toString();
+		String ef = dir.resolve("e").toString();
+		try (BufferedWriter bw = Files.newBufferedWriter(batchScriptFile, Charset.defaultCharset())) {
+			writeln(bw, "#!/bin/sh");
+			writeln(bw, "rm -rf *");
+			writeln(bw, "echo $(date) - " + executable + " starting > " + of + " 2> " + ef);
+			String line = executable + " " + JobManagementBean.escaped(parameters) + " >> " + of
+					+ " 2>> " + ef;
+			writeln(bw, line);
+			writeln(bw, "rc=$?");
+			writeln(bw, "echo $(date) - " + executable + " ending with code $rc >> " + of + " 2>> "
+					+ ef);
+			writeln(bw, "rm -rf *");
 		} catch (IOException e) {
 			throw new InternalException("Exception creating batch script: " + e.getMessage());
 		}
-		batchScriptFile.setExecutable(true);
+		return batchScriptFile;
+	}
 
+	private void writeln(BufferedWriter bw, String string) throws IOException {
+		bw.write(string);
+		bw.newLine();
+		logger.debug("Script line: " + string);
 	}
 
 	private static String sq = "\"'\"";
@@ -324,17 +252,12 @@ public class JobManagementBean {
 
 	public String submitInteractive(String userName, String executable, List<String> parameters,
 			String family) throws InternalException {
-		Path p = null;
-		try {
-			p = Files.createTempFile(null, null);
-		} catch (IOException e) {
-			throw new InternalException("Unable to create a temporary file: " + e.getMessage());
-		}
-		File interactiveScriptFile = p.toFile();
-		createScript(interactiveScriptFile, parameters, executable);
-		Account account = machineEJB.prepareMachine(userName, executable, parameters,
-				interactiveScriptFile);
-		return account.getUserName() + " " + account.getPassword() + " " + account.getHost();
+		return null;
+		// TODO must improve this ...
+		// Path interactiveScriptFile = createScript(parameters, executable, null);
+		// Account account = machineEJB.prepareMachine(userName, executable, parameters,
+		// interactiveScriptFile);
+		// return account.getUserName() + " " + account.getPassword() + " " + account.getHost();
 	}
 
 	private String getUserName(String sessionId) throws SessionException, ParameterException {
@@ -347,33 +270,94 @@ public class JobManagementBean {
 		}
 	}
 
-	public String listStatus(String sessionId) throws SessionException, ParameterException {
+	public String listStatus(String sessionId) throws SessionException, ParameterException,
+			InternalException {
+		logger.info("listStatus called with sessionId:" + sessionId);
+
 		String username = getUserName(sessionId);
-		List<Job> jobs = entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
-				.setParameter("username", username).getResultList();
-		StringBuilder sb = new StringBuilder();
-		for (Job job : jobs) {
-			sb.append(job.getId() + ", " + job.getStatus() + "\n");
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		JsonGenerator gen = Json.createGenerator(baos).writeStartArray();
+		Map<String, Map<String, String>> jobs = new HashMap<>();
+		for (Job job : entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
+				.setParameter("username", username).getResultList()) {
+
+			String jobId = job.getId();
+			String owner = job.getBatchUsername();
+			Map<String, String> jobsByOwner = jobs.get(owner);
+			if (jobsByOwner == null) {
+				jobsByOwner = new HashMap<>();
+				jobs.put(owner, jobsByOwner);
+				ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u",
+						owner, "atq");
+				if (sc.isError()) {
+					throw new InternalException(sc.getMessage());
+				}
+				String status;
+				for (String atq : sc.getStdout().trim().split("[\\n\\r]+")) {
+					if (!atq.isEmpty()) {
+						String[] bits = atq.split("\\s+");
+						if (bits[3].equals("=")) {
+							status = "Executing";
+						} else {
+							status = "Queued";
+						}
+						jobsByOwner.put(bits[0], status);
+					}
+				}
+				logger.debug("Built list of jobs for " + owner + ": " + jobsByOwner);
+			}
+			String status = jobsByOwner.get(jobId);
+			if (status == null) {
+				status = "Completed";
+			}
+			gen.writeStartObject().write("Id", job.getId()).write("Status", status)
+					.write("Executable", job.getExecutable())
+					.write("Date of submission", job.getSubmitDate().toString()).writeEnd();
 		}
-		return sb.toString();
+		gen.writeEnd().close();
+		return baos.toString();
 	}
 
 	public String getStatus(String jobId, String sessionId) throws SessionException,
-			ForbiddenException, ParameterException {
+			ForbiddenException, ParameterException, InternalException {
+		logger.info("getStatus called with sessionId:" + sessionId + " jobId:" + jobId);
 		Job job = getJob(sessionId, jobId);
-		StringBuilder sb = new StringBuilder();
-		sb.append("Id:                 " + job.getId() + "\n");
-		sb.append("Status:             " + job.getStatus() + "\n");
-		sb.append("Comment:            " + job.getComment() + "\n");
-		sb.append("Date of submission: " + job.getSubmitDate() + "\n");
-		sb.append("Node:               " + job.getWorkerNode() + "\n");
-		return sb.toString();
+		String owner = job.getBatchUsername();
+		logger.debug("job " + jobId + " is being run by " + owner);
+		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
+				"atq");
+		if (sc.isError()) {
+			throw new InternalException(sc.getMessage());
+		}
+		String status = "Completed";
+		for (String atq : sc.getStdout().trim().split("[\\n\\r]+")) {
+			if (!atq.isEmpty()) {
+				String[] bits = atq.split("\\s+");
+				if (bits[0].equals(jobId)) {
+					if (bits[3].equals("=")) {
+						status = "Executing";
+					} else {
+						status = "Queued";
+					}
+					break;
+				}
+			}
+		}
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		JsonGenerator gen = Json.createGenerator(baos);
+		gen.writeStartObject().write("Id", jobId).write("Status", status)
+				.write("Executable", job.getExecutable())
+				.write("Date of submission", job.getSubmitDate().toString());
+		gen.writeEnd().close();
+		return baos.toString();
 	}
 
 	private Job getJob(String sessionId, String jobId) throws SessionException, ForbiddenException,
 			ParameterException {
-		checkCredentials(sessionId);
 		String username = getUserName(sessionId);
+		if (jobId == null) {
+			throw new ParameterException("No jobId was specified");
+		}
 		Job job = entityManager.find(Job.class, jobId);
 		if (job == null || !job.getUsername().equals(username)) {
 			throw new ForbiddenException("Job does not belong to you");
@@ -383,34 +367,59 @@ public class JobManagementBean {
 
 	public void delete(String sessionId, String jobId) throws SessionException, ForbiddenException,
 			InternalException, ParameterException {
-		checkCredentials(sessionId);
+		logger.info("delete called with sessionId:" + sessionId + " jobId:" + jobId);
 		Job job = getJob(sessionId, jobId);
-		if (!job.getStatus().equals("C")) {
-			throw new ParameterException(
-					"Only completed jobs can be deleted - try cancelling first");
+		String owner = job.getBatchUsername();
+		logger.debug("job " + jobId + " is being run by " + owner);
+		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
+				"atq");
+		if (sc.isError()) {
+			throw new InternalException(sc.getMessage());
 		}
-		for (String oe : new String[] { "o", "e" }) {
-			String ext = "." + oe + jobId.split("\\.")[0];
-			Path path = FileSystems.getDefault().getPath("/home/batch/jobs",
-					job.getBatchFilename() + ext);
-			try {
-				Files.deleteIfExists(path);
-			} catch (IOException e) {
-				throw new InternalException("Unable to delete " + path.toString());
+		String status = "Completed";
+		for (String atq : sc.getStdout().trim().split("[\\n\\r]+")) {
+			if (!atq.isEmpty()) {
+				String[] bits = atq.split("\\s+");
+				if (bits[0].equals(jobId)) {
+					if (bits[3].equals("=")) {
+						status = "Executing";
+					} else {
+						status = "Queued";
+					}
+					break;
+				}
 			}
 		}
+		logger.debug("Status is " + status);
+		if (!status.equals("Completed")) {
+			throw new ParameterException("Job " + jobId + " is " + status);
+		}
+
 		entityManager.remove(job);
+
+		try {
+			Path dir = jobOutputDir.resolve(job.getDirectory());
+			for (File f : dir.toFile().listFiles()) {
+				Files.delete(f.toPath());
+			}
+			Files.delete(dir);
+			logger.debug("Directory " + dir + " has been deleted");
+		} catch (IOException e) {
+			throw new InternalException("Unable to delete jobOutputDirectory " + job.getDirectory());
+		}
 	}
 
 	public void cancel(String sessionId, String jobId) throws SessionException, ForbiddenException,
 			InternalException, ParameterException {
-		checkCredentials(sessionId);
+		logger.info("cancel called with sessionId:" + sessionId + " jobId:" + jobId);
 		Job job = getJob(sessionId, jobId);
-		ShellCommand sc = new ShellCommand("qdel", job.getId());
-		if (sc.isError()) {
-			throw new InternalException("Unable to cancel job " + sc.getStderr());
+		String owner = job.getBatchUsername();
+		logger.debug("job " + jobId + " is being run by " + owner);
+		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
+				"atrm", jobId);
+		if (sc.isError() && !sc.getStderr().startsWith("Warning")) {
+			throw new ParameterException(sc.getStderr());
 		}
-
 	}
 
 	private void checkCredentials(String sessionId) throws ParameterException {

@@ -12,6 +12,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
@@ -30,6 +31,7 @@ public class JobManager {
 
 	@POST
 	@Path("cancel/{jobId}")
+	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 	/**
 	 * Cancel the specified job if permitted to do so
 	 *  
@@ -40,7 +42,7 @@ public class JobManager {
 	 * @throws ForbiddenException
 	 * @throws InternalException
 	 */
-	public void cancel(@PathParam("jobId") String jobId, @QueryParam("sessionId") String sessionId)
+	public void cancel(@PathParam("jobId") String jobId, @FormParam("sessionId") String sessionId)
 			throws SessionException, ForbiddenException, InternalException, ParameterException {
 		jobManagementBean.cancel(sessionId, jobId);
 	}
@@ -118,28 +120,32 @@ public class JobManager {
 	 * 
 	 * @throws SessionException
 	 * @throws ParameterException
+	 * @throws InternalException
 	 */
 	public String getStatus(@QueryParam("sessionId") String sessionId) throws SessionException,
-			ParameterException {
+			ParameterException, InternalException {
 		return jobManagementBean.listStatus(sessionId);
 	}
 
 	@GET
 	@Path("status/{jobId}")
+	@Produces(MediaType.APPLICATION_JSON)
 	/**
 	 * Get the status of a specific job
 	 *  
 	 * @param jobId as returned by the call to submit
 	 * @param sessionId the icatSession id of the submitter
 	 * 
-	 * @return json holding
+	 * @return the status as a json string
 	 * 
 	 * @throws SessionException
 	 * @throws ForbiddenException
+	 * @throws ParameterException
+	 * @throws InternalException
 	 */
 	public String getStatus(@PathParam("jobId") String jobId,
 			@QueryParam("sessionId") String sessionId) throws SessionException, ForbiddenException,
-			ParameterException {
+			ParameterException, InternalException {
 		return jobManagementBean.getStatus(jobId, sessionId);
 	}
 

@@ -4,7 +4,7 @@
     <groupId>org.icatproject</groupId>
     <artifactId>ijp.unixbatch</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>portal</name>
+    <name>ijp.unixbatch</name>
     <packaging>war</packaging>
 
     <distributionManagement>
@@ -25,9 +25,9 @@
     </issueManagement>
 
     <scm>
-        <connection>scm:svn:http://icat-job-portal.googlecode.com/svn/portal/trunk</connection>
-        <developerConnection>scm:svn:https://icat-job-portal.googlecode.com/svn/portal/trunk</developerConnection>
-        <url>http://code.google.com/p/icat-job-portal/source/browse/#svn%2Fportal%2Ftrunk</url>
+        <connection>scm:svn:http://icat-job-portal.googlecode.com/svn/unixbatch/trunk</connection>
+        <developerConnection>scm:svn:https://icat-job-portal.googlecode.com/svn/unixbatch/trunk</developerConnection>
+        <url>http://code.google.com/p/icat-job-portal/source/browse/#svn%2Funixbatch%2Ftrunk</url>
     </scm>
 
     <repositories>
@@ -82,7 +82,7 @@
         <dependency>
             <groupId>org.icatproject</groupId>
             <artifactId>icat.utils</artifactId>
-            <version>4.5.0</version>
+            <version>4.6.0-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -157,4 +157,40 @@
         </plugins>
     </build>
 
+    <reporting>
+        <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-project-info-reports-plugin</artifactId>
+                <version>2.7</version>
+                <configuration>
+                    <dependencyLocationsEnabled>false</dependencyLocationsEnabled>
+                </configuration>
+                <reportSets>
+                    <reportSet>
+                        <reports>
+                            <report>index</report>
+                            <report>summary</report>
+                            <report>dependencies</report>
+                            <report>issue-tracking</report>
+                            <report>license</report>
+                            <report>plugins</report>
+                            <report>scm</report>
+                        </reports>
+                    </reportSet>
+                </reportSets>
+            </plugin>
+
+        </plugins>
+    </reporting>
+
+    <description>This is one of a group of batch services all oferening the same restful interfcae which may be used by the IJP. This is a very simple one which makes use of the standard batch facility normally available on unix.
+
+If you reuse this work, please cite it as shown on the DataCite page http://data.datacite.org/10.5286/SOFTWARE/ICAT/ijp.unixbatch.</description>
+    <url>http://data.datacite.org/10.5286/SOFTWARE/ICAT/ijp.unixbatch</url>
+    <organization>
+        <name>The ICAT project</name>
+    </organization>
+    <inceptionYear>2014</inceptionYear>
 </project>

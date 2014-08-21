@@ -15,8 +15,7 @@ actions, options, arg = getActions()
 props = actions.getGlassfish("unixbatch-setup.properties", ["dbProperties", "glassfish", "driver", "port"])
 
 prop_name = "unixbatch.properties"
-prop_list = ["icat.url", "ids.url", "families.list", "prepareaccount",
-"passwordDurationSeconds", "poolPrefix", "reader"]
+prop_list = ["icat.url", "families.list", "jobOutputDir"]
 
 if arg in ["CONFIGURE", "INSTALL"]:
     actions.configure(prop_name, prop_list) 
@@ -25,7 +24,11 @@ if arg in ["CONFIGURE", "INSTALL"]:
 
 if arg == "INSTALL":
     unixbatchProperties = actions.getProperties(prop_name, prop_list)
-
+    
+    if not actions.configFileExists(unixbatchProperties.get("jobOutputDir")):
+        abort("Please create directory " + unixbatchProperties.get("jobOutputDir") + 
+               " relative to the config directory as specified in unixbatch.properties")
+    
     actions.installFile(prop_name)
     
     try:           
