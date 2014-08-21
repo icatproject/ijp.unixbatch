@@ -8,21 +8,30 @@
     <packaging>war</packaging>
 
     <distributionManagement>
+
         <downloadUrl>http://www.icatproject.org/mvn/repo</downloadUrl>
+        <site>
+            <id>website</id>
+            <url>scp://www.icatproject.org/var/www/html/mvn/site/ijp/unixbatch/${project.version}</url>
+        </site>
         <repository>
-            <id>nexus.esc.rl.ac.uk</id>
-            <url>http://nexus.esc.rl.ac.uk:8081/nexus/content/repositories/releases</url>
+            <id>repo</id>
+            <url>scp://www.icatproject.org/var/www/html/mvn/repo</url>
         </repository>
-        <snapshotRepository>
-            <id>nexus.esc.rl.ac.uk</id>
-            <url>http://nexus.esc.rl.ac.uk:8081/nexus/content/repositories/snapshots</url>
-        </snapshotRepository>
     </distributionManagement>
 
     <issueManagement>
         <url>http://code.google.com/p/icat-job-portal/issues/list</url>
         <system>Google Code</system>
     </issueManagement>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <scm>
         <connection>scm:svn:http://icat-job-portal.googlecode.com/svn/unixbatch/trunk</connection>
@@ -35,11 +44,6 @@
         <repository>
             <id>ICAT Repo</id>
             <url>http://www.icatproject.org/mvn/repo</url>
-        </repository>
-
-        <repository>
-            <id>nexus.esc.rl.ac.uk</id>
-            <url>http://nexus.esc.rl.ac.uk:8081/nexus/content/groups/public</url>
         </repository>
 
     </repositories>
@@ -154,6 +158,33 @@
                 </executions>
             </plugin>
 
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <version>3.3</version>
+                <dependencies>
+                    <dependency><!-- add support for ssh/scp -->
+                        <groupId>org.apache.maven.wagon</groupId>
+                        <artifactId>wagon-ssh</artifactId>
+                        <version>1.0</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>2.7</version>
+                <dependencies>
+                    <dependency><!-- add support for ssh/scp -->
+                        <groupId>org.apache.maven.wagon</groupId>
+                        <artifactId>wagon-ssh</artifactId>
+                        <version>1.0</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+
         </plugins>
     </build>
 
@@ -185,7 +216,7 @@
         </plugins>
     </reporting>
 
-    <description>This is one of a group of batch services all oferening the same restful interfcae which may be used by the IJP. This is a very simple one which makes use of the standard batch facility normally available on unix.
+    <description>This is one of a group of batch services all offering the same restful interfcae which may be used by the IJP. This is a very simple one which makes use of the standard batch facility normally available on unix.
 
 If you reuse this work, please cite it as shown on the DataCite page http://data.datacite.org/10.5286/SOFTWARE/ICAT/ijp.unixbatch.</description>
     <url>http://data.datacite.org/10.5286/SOFTWARE/ICAT/ijp.unixbatch</url>
