@@ -251,8 +251,8 @@ public class JobManagementBean {
 	}
 
 	public String submitInteractive(String userName, String executable, List<String> parameters,
-			String family) throws InternalException {
-		return null;
+			String family) throws InternalException, ParameterException {
+		throw new ParameterException("Interactive jobs are not currently supported by UnixBatch");
 		// TODO must improve this ...
 		// Path interactiveScriptFile = createScript(parameters, executable, null);
 		// Account account = machineEJB.prepareMachine(userName, executable, parameters,
@@ -399,11 +399,14 @@ public class JobManagementBean {
 
 		try {
 			Path dir = jobOutputDir.resolve(job.getDirectory());
-			for (File f : dir.toFile().listFiles()) {
-				Files.delete(f.toPath());
+			File[] files = dir.toFile().listFiles();
+			if (files != null) {
+				for (File f : dir.toFile().listFiles()) {
+					Files.delete(f.toPath());
+				}
+				Files.delete(dir);
+				logger.debug("Directory " + dir + " has been deleted");
 			}
-			Files.delete(dir);
-			logger.debug("Directory " + dir + " has been deleted");
 		} catch (IOException e) {
 			throw new InternalException("Unable to delete jobOutputDirectory " + job.getDirectory());
 		}
@@ -440,6 +443,26 @@ public class JobManagementBean {
 		} else {
 			return submitBatch(userName, executable, parameters, family);
 		}
+	}
+
+	public int estimate(String sessionId, String executable, List<String> parameters,
+			String family, boolean interactive) throws SessionException, ParameterException {
+		String userName = getUserName(sessionId);
+		if (interactive) {
+			return estimateInteractive(userName, executable, parameters, family);
+		} else {
+			return estimateBatch(userName, executable, parameters, family);
+		}
+	}
+
+	private int estimateBatch(String userName, String executable, List<String> parameters,
+			String family) {
+		return 0;
+	}
+
+	private int estimateInteractive(String userName, String executable, List<String> parameters,
+			String family) throws SessionException, ParameterException {
+		throw new ParameterException("Interactive jobs are not currently supported by UnixBatch");
 	}
 
 }

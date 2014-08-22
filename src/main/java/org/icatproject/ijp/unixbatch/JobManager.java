@@ -66,6 +66,35 @@ public class JobManager {
 	}
 
 	@GET
+	@Path("estimate")
+	/**
+	 * Return an estimate of the time to complete a batch job or to start an interactive one. 
+	 * The parameters are indentical to those of submit. 
+	 * 
+	 * @param sessionId the icatSession id of the submitter
+	 * @param executable the executable name
+	 * @param parameters the executables parameters
+	 * @param interactive true if interactive else false
+	 * @param family the name of the family. A family identifies a group of user 
+	 *        accounts. If omitted the default family can be used.
+	 *  
+	 * @return The time estimate in minutes relative to the current time. As an integer this can 
+	 *         accommodate a delay of around sixty years.
+	 * 
+	 * @throws InternalException
+	 * @throws SessionException
+	 * @throws ParameterException
+	 */
+	public int estimate(@QueryParam("sessionId") String sessionId,
+			@QueryParam("executable") String executable,
+			@QueryParam("parameter") List<String> parameters,
+			@QueryParam("interactive") Boolean interactive, @QueryParam("family") String family)
+			throws InternalException, SessionException, ParameterException {
+		return jobManagementBean.estimate(sessionId, executable, parameters, family,
+				interactive != null && interactive);
+	}
+
+	@GET
 	@Path("error/{jobId}")
 	/**
 	 * Stream the contents of the jobs standard standard error. If the job has not  
@@ -170,7 +199,7 @@ public class JobManager {
 	public String submit(@FormParam("sessionId") String sessionId,
 			@FormParam("executable") String executable,
 			@FormParam("parameter") List<String> parameters,
-			@FormParam("interactive") Boolean interactive, @QueryParam("family") String family)
+			@FormParam("interactive") Boolean interactive, @FormParam("family") String family)
 			throws InternalException, SessionException, ParameterException {
 		return jobManagementBean.submit(sessionId, executable, parameters, family,
 				interactive != null && interactive);
