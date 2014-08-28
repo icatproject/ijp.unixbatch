@@ -85,7 +85,7 @@ public class JobManager {
 	 * @throws SessionException
 	 * @throws ParameterException
 	 */
-	public int estimate(@QueryParam("sessionId") String sessionId,
+	public String estimate(@QueryParam("sessionId") String sessionId,
 			@QueryParam("executable") String executable,
 			@QueryParam("parameter") List<String> parameters,
 			@QueryParam("interactive") Boolean interactive, @QueryParam("family") String family)

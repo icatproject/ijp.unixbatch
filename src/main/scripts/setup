@@ -21,14 +21,12 @@ if arg in ["CONFIGURE", "INSTALL"]:
     actions.configure(prop_name, prop_list) 
     unixbatchProperties = actions.getProperties(prop_name, prop_list)
     actions.checkNoErrors()
-
-if arg == "INSTALL":
-    unixbatchProperties = actions.getProperties(prop_name, prop_list)
-    
     if not actions.configFileExists(unixbatchProperties.get("jobOutputDir")):
         abort("Please create directory " + unixbatchProperties.get("jobOutputDir") + 
                " relative to the config directory as specified in unixbatch.properties")
-    
+
+
+if arg == "INSTALL":
     actions.installFile(prop_name)
     
     try:           
@@ -51,7 +49,6 @@ if arg == "UNINSTALL":
  
     try:
         uninstall()
-        
     except Exception, e:
         abort(str(e))       
     

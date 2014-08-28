@@ -438,21 +438,32 @@ public class JobManagementBean {
 				+ " parameters:" + parameters + " family:" + family + " :" + " interactive:"
 				+ interactive);
 		String userName = getUserName(sessionId);
+		String jobId;
 		if (interactive) {
-			return submitInteractive(userName, executable, parameters, family);
+			jobId = submitInteractive(userName, executable, parameters, family);
 		} else {
-			return submitBatch(userName, executable, parameters, family);
+			jobId = submitBatch(userName, executable, parameters, family);
 		}
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		JsonGenerator gen = Json.createGenerator(baos);
+		gen.writeStartObject().write("jobId", jobId).writeEnd().close();
+		return baos.toString();
 	}
 
-	public int estimate(String sessionId, String executable, List<String> parameters,
+	public String estimate(String sessionId, String executable, List<String> parameters,
 			String family, boolean interactive) throws SessionException, ParameterException {
 		String userName = getUserName(sessionId);
+
+		int time;
 		if (interactive) {
-			return estimateInteractive(userName, executable, parameters, family);
+			time = estimateInteractive(userName, executable, parameters, family);
 		} else {
-			return estimateBatch(userName, executable, parameters, family);
+			time = estimateBatch(userName, executable, parameters, family);
 		}
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		JsonGenerator gen = Json.createGenerator(baos);
+		gen.writeStartObject().write("time", time).writeEnd().close();
+		return baos.toString();
 	}
 
 	private int estimateBatch(String userName, String executable, List<String> parameters,

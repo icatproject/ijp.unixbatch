@@ -1,6 +1,7 @@
 package org.icatproject.ijp.unixbatch.exceptions;
 
 import java.io.ByteArrayOutputStream;
+import java.net.HttpURLConnection;
 
 import javax.json.Json;
 import javax.json.stream.JsonGenerator;
@@ -23,7 +24,7 @@ public class WebApplicationExceptionMapper implements ExceptionMapper<WebApplica
 		JsonGenerator gen = Json.createGenerator(baos);
 		gen.writeStartObject().write("code", "InternalException")
 				.write("message", e.getClass() + " " + e.getMessage()).writeEnd().close();
-
-		return Response.ok().entity(baos.toString()).build();
+		return Response.status(HttpURLConnection.HTTP_INTERNAL_ERROR).entity(baos.toString())
+				.build();
 	}
 }

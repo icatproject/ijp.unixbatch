@@ -17,15 +17,12 @@ public class UnixBatchExceptionMapper implements ExceptionMapper<UnixBatchExcept
 
 	@Override
 	public Response toResponse(UnixBatchException e) {
-
 		logger.info("Processing: " + e.getClass() + " " + e.getMessage());
-
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		JsonGenerator gen = Json.createGenerator(baos);
 		gen.writeStartObject().write("code", e.getClass().getSimpleName())
 				.write("message", e.getMessage());
 		gen.writeEnd().close();
-		return Response.ok().entity(baos.toString()).build();
-
+		return Response.status(e.getHttpStatusCode()).entity(baos.toString()).build();
 	}
 }
