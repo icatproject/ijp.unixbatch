@@ -5,7 +5,7 @@
     <persistence-unit name="unixbatch" transaction-type="JTA">
         <provider>org.eclipse.persistence.jpa.PersistenceProvider</provider>
         <jta-data-source>jdbc/unixbatch</jta-data-source>
-        <class>org.icatproject.ijp.unixbatch.Job</class>
+        <class>org.icatproject.ijp.unixbatch.UnixBatchJob</class>
         <exclude-unlisted-classes>true</exclude-unlisted-classes>
         <properties>
             <property name="eclipselink.target-server" value="SunAS9" />

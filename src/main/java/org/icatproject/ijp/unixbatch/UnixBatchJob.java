@@ -11,10 +11,10 @@ import javax.persistence.TemporalType;
 
 @SuppressWarnings("serial")
 @Entity
-@NamedQuery(name = "Job.FIND_BY_USERNAME", query = "SELECT j FROM Job j WHERE j.username = :username ORDER BY j.submitDate DESC")
-public class Job implements Serializable {
+@NamedQuery(name = "UnixBatchJob.FIND_BY_USERNAME", query = "SELECT j FROM UnixBatchJob j WHERE j.username = :username ORDER BY j.submitDate DESC")
+public class UnixBatchJob implements Serializable {
 
-	public final static String FIND_BY_USERNAME = "Job.FIND_BY_USERNAME";
+	public final static String FIND_BY_USERNAME = "UnixBatchJob.FIND_BY_USERNAME";
 
 	private String batchUsername;
 
@@ -29,7 +29,7 @@ public class Job implements Serializable {
 
 	private String username;
 
-	public Job() {
+	public UnixBatchJob() {
 	}
 
 	public String getBatchUsername() {

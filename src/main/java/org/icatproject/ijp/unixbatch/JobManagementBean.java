@@ -115,7 +115,7 @@ public class JobManagementBean {
 			throws SessionException, ForbiddenException, InternalException, ParameterException {
 		logger.info("getJobOutput called with sessionId:" + sessionId + " jobId:" + jobId
 				+ " outputType:" + outputType);
-		Job job = getJob(sessionId, jobId);
+		UnixBatchJob job = getJob(sessionId, jobId);
 
 		Path file = jobOutputDir.resolve(job.getDirectory()).resolve(
 				outputType == OutputType.STANDARD_OUTPUT ? "o" : "e");
@@ -172,7 +172,7 @@ public class JobManagementBean {
 			String response = sc.getStderr().trim();
 			jobId = response.split("\\s+")[1];
 
-			Job job = new Job();
+			UnixBatchJob job = new UnixBatchJob();
 			job.setId(jobId);
 			job.setExecutable(executable);
 			job.setBatchUsername(owner);
@@ -278,7 +278,7 @@ public class JobManagementBean {
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		JsonGenerator gen = Json.createGenerator(baos).writeStartArray();
 		Map<String, Map<String, String>> jobs = new HashMap<>();
-		for (Job job : entityManager.createNamedQuery(Job.FIND_BY_USERNAME, Job.class)
+		for (UnixBatchJob job : entityManager.createNamedQuery(UnixBatchJob.FIND_BY_USERNAME, UnixBatchJob.class)
 				.setParameter("username", username).getResultList()) {
 
 			String jobId = job.getId();
@@ -321,7 +321,7 @@ public class JobManagementBean {
 	public String getStatus(String jobId, String sessionId) throws SessionException,
 			ForbiddenException, ParameterException, InternalException {
 		logger.info("getStatus called with sessionId:" + sessionId + " jobId:" + jobId);
-		Job job = getJob(sessionId, jobId);
+		UnixBatchJob job = getJob(sessionId, jobId);
 		String owner = job.getBatchUsername();
 		logger.debug("job " + jobId + " is being run by " + owner);
 		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
@@ -352,13 +352,13 @@ public class JobManagementBean {
 		return baos.toString();
 	}
 
-	private Job getJob(String sessionId, String jobId) throws SessionException, ForbiddenException,
+	private UnixBatchJob getJob(String sessionId, String jobId) throws SessionException, ForbiddenException,
 			ParameterException {
 		String username = getUserName(sessionId);
 		if (jobId == null) {
 			throw new ParameterException("No jobId was specified");
 		}
-		Job job = entityManager.find(Job.class, jobId);
+		UnixBatchJob job = entityManager.find(UnixBatchJob.class, jobId);
 		if (job == null || !job.getUsername().equals(username)) {
 			throw new ForbiddenException("Job does not belong to you");
 		}
@@ -368,7 +368,7 @@ public class JobManagementBean {
 	public void delete(String sessionId, String jobId) throws SessionException, ForbiddenException,
 			InternalException, ParameterException {
 		logger.info("delete called with sessionId:" + sessionId + " jobId:" + jobId);
-		Job job = getJob(sessionId, jobId);
+		UnixBatchJob job = getJob(sessionId, jobId);
 		String owner = job.getBatchUsername();
 		logger.debug("job " + jobId + " is being run by " + owner);
 		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
@@ -415,7 +415,7 @@ public class JobManagementBean {
 	public void cancel(String sessionId, String jobId) throws SessionException, ForbiddenException,
 			InternalException, ParameterException {
 		logger.info("cancel called with sessionId:" + sessionId + " jobId:" + jobId);
-		Job job = getJob(sessionId, jobId);
+		UnixBatchJob job = getJob(sessionId, jobId);
 		String owner = job.getBatchUsername();
 		logger.debug("job " + jobId + " is being run by " + owner);
 		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
@@ -452,6 +452,9 @@ public class JobManagementBean {
 
 	public String estimate(String sessionId, String executable, List<String> parameters,
 			String family, boolean interactive) throws SessionException, ParameterException {
+		logger.info("estimate called with sessionId:" + sessionId + " executable:" + executable
+				+ " parameters:" + parameters + " family:" + family + " :" + " interactive:"
+				+ interactive);
 		String userName = getUserName(sessionId);
 
 		int time;

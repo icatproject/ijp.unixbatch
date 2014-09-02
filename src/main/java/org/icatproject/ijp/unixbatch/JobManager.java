@@ -32,6 +32,7 @@ public class JobManager {
 	@POST
 	@Path("cancel/{jobId}")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+	@Produces(MediaType.APPLICATION_JSON)
 	/**
 	 * Cancel the specified job if permitted to do so
 	 *  
@@ -49,6 +50,7 @@ public class JobManager {
 
 	@DELETE
 	@Path("delete/{jobId}")
+	@Produces(MediaType.APPLICATION_JSON)
 	/**
 	 * Delete all information on the specified job if permitted to do so and if it has completed
 	 * 
@@ -67,6 +69,7 @@ public class JobManager {
 
 	@GET
 	@Path("estimate")
+	@Produces(MediaType.APPLICATION_JSON)
 	/**
 	 * Return an estimate of the time to complete a batch job or to start an interactive one. 
 	 * The parameters are indentical to those of submit. 
@@ -96,6 +99,7 @@ public class JobManager {
 
 	@GET
 	@Path("error/{jobId}")
+	@Produces(MediaType.APPLICATION_OCTET_STREAM)
 	/**
 	 * Stream the contents of the jobs standard standard error. If the job has not  
 	 * finished running the output will be incomplete.
@@ -117,6 +121,7 @@ public class JobManager {
 
 	@GET
 	@Path("output/{jobId}")
+	@Produces(MediaType.APPLICATION_OCTET_STREAM)
 	/**
 	 * Stream the contents of the jobs standard standard output. If the job has not  
 	 * finished running the output will be incomplete.
@@ -140,6 +145,7 @@ public class JobManager {
 
 	@GET
 	@Path("status")
+	@Produces(MediaType.APPLICATION_JSON)
 	/**
 	 * Get the list of statuses of known jobs that may be queried by the user identified by the sessionId
 	 * 
@@ -181,6 +187,7 @@ public class JobManager {
 	@POST
 	@Path("submit")
 	@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+	@Produces(MediaType.APPLICATION_JSON)
 	/**
 	 * Submit a job
 	 * 
