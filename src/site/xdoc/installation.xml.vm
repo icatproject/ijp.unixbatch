@@ -77,7 +77,9 @@
 
                     <dt>families.&lt;name&gt;</dt>
                     <dd>Space separated list of pool accounts. Each pool account should be set up without password or ssh keys as it is only for use
-                        by this service. The glassfish user should be permitted to run batch, atq and atrm for all pool accounts.
+                        by this service. The glassfish user should be permitted to run batch, atq and atrm for all pool accounts. This can be done by
+                        commenting out "Defaults requiretty", if present, from the sudoers and adding something like: "glassfish
+                        ALL=(batch01,batch02,batch03,ingest01,ingest02) NOPASSWD: /usr/bin/batch, /usr/bin/atq, /usr/bin/atrm"
                     </dd>
 
                     <dt>jobOutputDir</dt>
@@ -92,8 +94,6 @@
             <subsection name="Checking that it works">
                 <p>The program ijpbatch can be used to test for correct functioning of any ijp batch component.</p>
             </subsection>
-
-
 
         </section>
     </body>

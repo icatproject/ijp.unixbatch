@@ -1,7 +1,6 @@
 package org.icatproject.ijp.unixbatch;
 
 import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,8 +19,6 @@ import java.util.Random;
 
 import javax.annotation.PostConstruct;
 import javax.ejb.Stateless;
-import javax.json.Json;
-import javax.json.stream.JsonGenerator;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.xml.namespace.QName;
@@ -29,10 +26,13 @@ import javax.xml.namespace.QName;
 import org.icatproject.ICAT;
 import org.icatproject.ICATService;
 import org.icatproject.IcatException_Exception;
-import org.icatproject.ijp.unixbatch.exceptions.ForbiddenException;
-import org.icatproject.ijp.unixbatch.exceptions.InternalException;
-import org.icatproject.ijp.unixbatch.exceptions.ParameterException;
-import org.icatproject.ijp.unixbatch.exceptions.SessionException;
+import org.icatproject.ijp.batch.BatchJson;
+import org.icatproject.ijp.batch.JobStatus;
+import org.icatproject.ijp.batch.OutputType;
+import org.icatproject.ijp.batch.exceptions.ForbiddenException;
+import org.icatproject.ijp.batch.exceptions.InternalException;
+import org.icatproject.ijp.batch.exceptions.ParameterException;
+import org.icatproject.ijp.batch.exceptions.SessionException;
 import org.icatproject.utils.CheckedProperties;
 import org.icatproject.utils.ShellCommand;
 import org.slf4j.Logger;
@@ -43,10 +43,6 @@ import org.slf4j.LoggerFactory;
  */
 @Stateless
 public class JobManagementBean {
-
-	public enum OutputType {
-		STANDARD_OUTPUT, ERROR_OUTPUT;
-	}
 
 	private ICAT icat;
 
@@ -250,16 +246,6 @@ public class JobManagementBean {
 		return sb.toString();
 	}
 
-	public String submitInteractive(String userName, String executable, List<String> parameters,
-			String family) throws InternalException, ParameterException {
-		throw new ParameterException("Interactive jobs are not currently supported by UnixBatch");
-		// TODO must improve this ...
-		// Path interactiveScriptFile = createScript(parameters, executable, null);
-		// Account account = machineEJB.prepareMachine(userName, executable, parameters,
-		// interactiveScriptFile);
-		// return account.getUserName() + " " + account.getPassword() + " " + account.getHost();
-	}
-
 	private String getUserName(String sessionId) throws SessionException, ParameterException {
 		try {
 			checkCredentials(sessionId);
@@ -270,52 +256,15 @@ public class JobManagementBean {
 		}
 	}
 
-	public String listStatus(String sessionId) throws SessionException, ParameterException,
+	public String list(String sessionId) throws SessionException, ParameterException,
 			InternalException {
 		logger.info("listStatus called with sessionId:" + sessionId);
 
 		String username = getUserName(sessionId);
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		JsonGenerator gen = Json.createGenerator(baos).writeStartArray();
-		Map<String, Map<String, String>> jobs = new HashMap<>();
-		for (UnixBatchJob job : entityManager.createNamedQuery(UnixBatchJob.FIND_BY_USERNAME, UnixBatchJob.class)
-				.setParameter("username", username).getResultList()) {
-
-			String jobId = job.getId();
-			String owner = job.getBatchUsername();
-			Map<String, String> jobsByOwner = jobs.get(owner);
-			if (jobsByOwner == null) {
-				jobsByOwner = new HashMap<>();
-				jobs.put(owner, jobsByOwner);
-				ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u",
-						owner, "atq");
-				if (sc.isError()) {
-					throw new InternalException(sc.getMessage());
-				}
-				String status;
-				for (String atq : sc.getStdout().trim().split("[\\n\\r]+")) {
-					if (!atq.isEmpty()) {
-						String[] bits = atq.split("\\s+");
-						if (bits[3].equals("=")) {
-							status = "Executing";
-						} else {
-							status = "Queued";
-						}
-						jobsByOwner.put(bits[0], status);
-					}
-				}
-				logger.debug("Built list of jobs for " + owner + ": " + jobsByOwner);
-			}
-			String status = jobsByOwner.get(jobId);
-			if (status == null) {
-				status = "Completed";
-			}
-			gen.writeStartObject().write("Id", job.getId()).write("Status", status)
-					.write("Executable", job.getExecutable())
-					.write("Date of submission", job.getSubmitDate().toString()).writeEnd();
-		}
-		gen.writeEnd().close();
-		return baos.toString();
+		List<String> jobs = entityManager
+				.createNamedQuery(UnixBatchJob.ID_BY_USERNAME, String.class)
+				.setParameter("username", username).getResultList();
+		return BatchJson.list(jobs);
 	}
 
 	public String getStatus(String jobId, String sessionId) throws SessionException,
@@ -329,31 +278,25 @@ public class JobManagementBean {
 		if (sc.isError()) {
 			throw new InternalException(sc.getMessage());
 		}
-		String status = "Completed";
+		JobStatus status = JobStatus.Completed;
 		for (String atq : sc.getStdout().trim().split("[\\n\\r]+")) {
 			if (!atq.isEmpty()) {
 				String[] bits = atq.split("\\s+");
 				if (bits[0].equals(jobId)) {
 					if (bits[3].equals("=")) {
-						status = "Executing";
+						status = JobStatus.Executing;
 					} else {
-						status = "Queued";
+						status = JobStatus.Queued;
 					}
 					break;
 				}
 			}
 		}
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		JsonGenerator gen = Json.createGenerator(baos);
-		gen.writeStartObject().write("Id", jobId).write("Status", status)
-				.write("Executable", job.getExecutable())
-				.write("Date of submission", job.getSubmitDate().toString());
-		gen.writeEnd().close();
-		return baos.toString();
+		return BatchJson.getStatus(status);
 	}
 
-	private UnixBatchJob getJob(String sessionId, String jobId) throws SessionException, ForbiddenException,
-			ParameterException {
+	private UnixBatchJob getJob(String sessionId, String jobId) throws SessionException,
+			ForbiddenException, ParameterException {
 		String username = getUserName(sessionId);
 		if (jobId == null) {
 			throw new ParameterException("No jobId was specified");
@@ -438,16 +381,12 @@ public class JobManagementBean {
 				+ " parameters:" + parameters + " family:" + family + " :" + " interactive:"
 				+ interactive);
 		String userName = getUserName(sessionId);
-		String jobId;
 		if (interactive) {
-			jobId = submitInteractive(userName, executable, parameters, family);
+			throw new ParameterException(
+					"Interactive jobs are not currently supported by UnixBatch");
 		} else {
-			jobId = submitBatch(userName, executable, parameters, family);
+			return BatchJson.submitBatch(submitBatch(userName, executable, parameters, family));
 		}
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		JsonGenerator gen = Json.createGenerator(baos);
-		gen.writeStartObject().write("jobId", jobId).writeEnd().close();
-		return baos.toString();
 	}
 
 	public String estimate(String sessionId, String executable, List<String> parameters,
@@ -457,16 +396,12 @@ public class JobManagementBean {
 				+ interactive);
 		String userName = getUserName(sessionId);
 
-		int time;
 		if (interactive) {
-			time = estimateInteractive(userName, executable, parameters, family);
+			return BatchJson
+					.estimate(estimateInteractive(userName, executable, parameters, family));
 		} else {
-			time = estimateBatch(userName, executable, parameters, family);
+			return BatchJson.estimate(estimateBatch(userName, executable, parameters, family));
 		}
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		JsonGenerator gen = Json.createGenerator(baos);
-		gen.writeStartObject().write("time", time).writeEnd().close();
-		return baos.toString();
 	}
 
 	private int estimateBatch(String userName, String executable, List<String> parameters,
