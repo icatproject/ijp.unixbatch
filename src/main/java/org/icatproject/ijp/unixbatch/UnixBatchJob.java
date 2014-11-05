@@ -24,6 +24,7 @@ public class UnixBatchJob implements Serializable {
 
 	private String directory;
 	private String executable;
+	private boolean cancelled;
 
 	@Id
 	private String id;
@@ -83,4 +84,14 @@ public class UnixBatchJob implements Serializable {
 	public void setUsername(String username) {
 		this.username = username;
 	}
+
+	public boolean isCancelled() {
+		return cancelled;
+	}
+
+	public void setCancelled(boolean cancelled) {
+		this.cancelled = cancelled;
+	}
+
+
 }

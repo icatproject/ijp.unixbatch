@@ -271,6 +271,10 @@ public class JobManagementBean {
 			ForbiddenException, ParameterException, InternalException {
 		logger.info("getStatus called with sessionId:" + sessionId + " jobId:" + jobId);
 		UnixBatchJob job = getJob(sessionId, jobId);
+		if (job.isCancelled()) {
+			logger.debug("job " + jobId + " has been cancelled");
+			return BatchJson.getStatus(JobStatus.Cancelled);
+		}
 		String owner = job.getBatchUsername();
 		logger.debug("job " + jobId + " is being run by " + owner);
 		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
@@ -278,6 +282,7 @@ public class JobManagementBean {
 		if (sc.isError()) {
 			throw new InternalException(sc.getMessage());
 		}
+
 		JobStatus status = JobStatus.Completed;
 		for (String atq : sc.getStdout().trim().split("[\\n\\r]+")) {
 			if (!atq.isEmpty()) {
@@ -355,8 +360,8 @@ public class JobManagementBean {
 		}
 	}
 
-	public void cancel(String sessionId, String jobId) throws SessionException, ForbiddenException,
-			InternalException, ParameterException {
+	public void cancel(String sessionId, String jobId) throws ParameterException, SessionException,
+			ForbiddenException {
 		logger.info("cancel called with sessionId:" + sessionId + " jobId:" + jobId);
 		UnixBatchJob job = getJob(sessionId, jobId);
 		String owner = job.getBatchUsername();
@@ -370,9 +375,10 @@ public class JobManagementBean {
 				throw new ParameterException(sc.getStderr());
 			}
 		}
+		job.setCancelled(true);
 	}
 
-	private void killJobsFor(String owner) throws InternalException {
+	private void killJobsFor(String owner) {
 		ShellCommand sc = new ShellCommand("ps", "-U", owner, "-o", "pid=");
 		if (!sc.isError()) {
 			List<String> cmdbits = new ArrayList<>();
