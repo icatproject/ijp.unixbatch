@@ -360,12 +360,37 @@ public class JobManagementBean {
 		logger.info("cancel called with sessionId:" + sessionId + " jobId:" + jobId);
 		UnixBatchJob job = getJob(sessionId, jobId);
 		String owner = job.getBatchUsername();
-		logger.debug("job " + jobId + " is being run by " + owner);
+		logger.debug("job " + jobId + " is being handled by " + owner);
 		ShellCommand sc = new ShellCommand(Paths.get("/home/" + owner), null, "sudo", "-u", owner,
 				"atrm", jobId);
-		if (sc.isError() && !sc.getStderr().startsWith("Warning")) {
-			throw new ParameterException(sc.getStderr());
+		if (sc.isError()) {
+			if (sc.getStderr().startsWith("Warning")) { // Job was running
+				killJobsFor(owner);
+			} else {
+				throw new ParameterException(sc.getStderr());
+			}
 		}
+	}
+
+	private void killJobsFor(String owner) throws InternalException {
+		ShellCommand sc = new ShellCommand("ps", "-U", owner, "-o", "pid=");
+		if (!sc.isError()) {
+			List<String> cmdbits = new ArrayList<>();
+			cmdbits.add("sudo");
+			cmdbits.add("-u");
+			cmdbits.add(owner);
+			cmdbits.add("/usr/bin/kill");
+			cmdbits.add("-9");
+			for (String pid : sc.getStdout().split("[\\r\\n]+")) {
+				cmdbits.add(pid);
+			}
+			logger.debug("Executing " + cmdbits);
+			sc = new ShellCommand(cmdbits);
+			if (sc.isError()) {
+				logger.debug(sc.getStderr());
+			}
+		}
+
 	}
 
 	private void checkCredentials(String sessionId) throws ParameterException {

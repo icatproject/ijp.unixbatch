@@ -9,7 +9,7 @@
 
         <section name="Installation">
 
-            <subsection name="Compatibility">This authentication plugin will work with an ICAT version of 4.2 or greater.</subsection>
+            <subsection name="Compatibility">This IJP batch component will work with an ICAT version of 4.3 or greater.</subsection>
 
             <subsection name="Prerequisites">
 
@@ -18,17 +18,12 @@
                         The ijp.unixbatch distribution:
                         <a href="${repoUrl}/org/icatproject/ijp.unixbatch/${project.version}/ijp.unixbatch-${project.version}-distro.zip">ijp.unixbatch-${project.version}-distro.zip</a>
                     </li>
+
                     <li>
-                        A suitable deployed container. The installation scripts only support Glassfish.
-                        Testing has been carried out with Glassfish
+                        A suitable deployed container. The installation scripts only support Glassfish. Testing has been carried out with Glassfish
                         4.0.
                         <a href="http://icatproject.org/installation/glassfish/">Glassfish installation instructions</a>
                         are available.
-                    </li>
-                    <li>
-                        A database as described in
-                        <a href="http://icatproject.org/installation/database/">Database installation instructions</a>
-                        installed on the server
                     </li>
 
                     <li>
@@ -77,9 +72,10 @@
 
                     <dt>families.&lt;name&gt;</dt>
                     <dd>Space separated list of pool accounts. Each pool account should be set up without password or ssh keys as it is only for use
-                        by this service. The glassfish user should be permitted to run batch, atq and atrm for all pool accounts. This can be done by
-                        commenting out "Defaults requiretty", if present, from the sudoers and adding something like: "glassfish
-                        ALL=(batch01,batch02,batch03,ingest01,ingest02) NOPASSWD: /usr/bin/batch, /usr/bin/atq, /usr/bin/atrm"
+                        by this service. The glassfish user should be permitted to run batch, atq, atrm and kill for all pool accounts. This can be
+                        done by commenting out "Defaults requiretty", if present, from the sudoers and adding something like: "glassfish
+                        ALL=(batch01,batch02,batch03,ingest01,ingest02) NOPASSWD: /usr/bin/batch, /usr/bin/atq, /usr/bin/atrm, /usr/bin/kill". In
+                        addition the glassfish user should be given "rwx" access to the home directory of each of the pool accounts.
                     </dd>
 
                     <dt>jobOutputDir</dt>
