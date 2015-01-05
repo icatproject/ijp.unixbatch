@@ -29,6 +29,12 @@
                     <li>
                         Python (version 2.4 to 2.7) installed on the server.
                     </li>
+                    
+                    <li>
+                      A database / schema that unixbatch will use to hold details of submitted jobs. The connection details
+                      should be specified in the dbProperties string in unixbatch-setup.properties (see later). Setup will
+                      create the tables required by unixbatch in this schema.
+                    </li>
                 </ul>
             </subsection>
 
@@ -47,7 +53,7 @@
                     <dt>driver</dt>
                     <dd>is the name of the jdbc driver and must match the jar file for your database that you stored in the previous step.</dd>
                     <dt>dbProperties</dt>
-                    <dd>identifies the password database and how to connect to it.</dd>
+                    <dd>identifies the jobs database and how to connect to it.</dd>
                     <dt>glassfish</dt>
                     <dd>is the top level of the glassfish installation. It must contain "glassfish/domains", and will be referred to here as
                         GLASSFISH_HOME as if an environment variable had been set.
