@@ -220,7 +220,7 @@
         </plugins>
     </reporting>
 
-    <description>This is one of a group of batch services all offering the same restful interfcae which may be used by the IJP. This is a very simple one which makes use of the standard batch facility normally available on unix.
+    <description>This is one of a group of batch services all offering the same restful interface which may be used by the IJP. This is a very simple one which makes use of the standard batch facility normally available on unix.
 
 If you reuse this work, please cite it as shown on the DataCite page http://data.datacite.org/10.5286/SOFTWARE/ICAT/ijp.unixbatch.</description>
     <url>http://data.datacite.org/10.5286/SOFTWARE/ICAT/ijp.unixbatch</url>
