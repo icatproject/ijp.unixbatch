@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.icatproject</groupId>
 	<artifactId>ijp.unixbatch</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1-SNAPSHOT</version>
 	<name>ijp.unixbatch</name>
 	<packaging>war</packaging>
 
@@ -35,7 +35,7 @@
 		<connection>scm:git:https://github.com/icatproject/ijp.unixbatch.git</connection>
 		<developerConnection>scm:git:https://github.com/icatproject/ijp.unixbatch.git</developerConnection>
 		<url>https://github.com/icatproject/ijp.unixbatch</url>
-	  <tag>ijp.unixbatch-1.0.0</tag>
+	  <tag>HEAD</tag>
   </scm>
 
 	<issueManagement>
