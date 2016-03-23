@@ -65,7 +65,7 @@ public class JobManagementBean {
 					defaultFamily = mnemonic;
 				}
 				String key = "families." + mnemonic;
-				String[] members = props.getProperty(key).split("\\s+");
+				String[] members = props.getString(key).split("\\s+");
 				families.put(mnemonic, new ArrayList<>(Arrays.asList(members)));
 				logger.debug("Family " + mnemonic + " contains " + families.get(mnemonic));
 			}
