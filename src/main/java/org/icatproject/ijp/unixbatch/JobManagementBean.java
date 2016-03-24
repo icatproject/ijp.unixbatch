@@ -17,6 +17,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.PostConstruct;
 import javax.ejb.Stateless;
@@ -149,8 +151,18 @@ public class JobManagementBean {
 			if (sc.getExitValue() != 0) {
 				throw new InternalException("Unable to submit job via batch " + sc.getMessage() + sc.getStdout());
 			}
-			String response = sc.getStderr().trim();
-			jobId = response.split("\\s+")[1];
+			String response = sc.getStderr();
+			
+			// Some versions of the batch command send extra warnings to stderr;
+			// we can't assume that the job id is always the second word.
+			
+			Pattern p = Pattern.compile(".*job (\\d+) .*", Pattern.DOTALL);
+			Matcher m = p.matcher(response);
+			if (m.matches()) {
+				jobId = m.group(1);
+			} else {
+				throw new InternalException("Unable to extract job id from batch output: " + response);
+			}
 
 			UnixBatchJob job = new UnixBatchJob();
 			job.setId(jobId);
