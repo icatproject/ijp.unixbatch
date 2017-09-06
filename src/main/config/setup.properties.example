@@ -1,0 +1,16 @@
+# Driver and connection properties for Oracle
+#driver=oracle.jdbc.pool.OracleDataSource
+#dbProperties=url="'"jdbc:oracle:thin:@//localhost:1521/XE"'":ImplicitCachingEnabled=true:MaxStatements=200:user=ijp:password=secret
+
+# Driver and connection properties for MySQL
+db.driver     = com.mysql.jdbc.jdbc2.optional.MysqlDataSource
+db.url        = jdbc:mysql://localhost:3306/unixbatch
+db.username   = icat
+db.password   = secret
+db.name       = unixbatch
+
+# Glassfish container
+container      = Glassfish
+home           = /home/fisher/pf/glassfish4
+secure         = true
+port           = 4848
